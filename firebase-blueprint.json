@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "siteSettings": {
+      "title": "SiteSettings",
+      "description": "Pengaturan identitas publik Puskesmas Kepanjen",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "tagline": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "logoUrl": { "type": "string", "description": "Tautan URL/ID Google Drive dalam bentuk teks" },
+        "headPhoto": { "type": "string", "description": "Tautan URL/ID foto Kepala Puskesmas di Google Drive dalam bentuk teks" },
+        "headName": { "type": "string" },
+        "headNip": { "type": "string" },
+        "driveFolderUrl": { "type": "string" },
+        "appsScriptUrl": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "marqueeSettings": {
+      "title": "MarqueeSettings",
+      "description": "Pengaturan running text pengumuman di beranda",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "speed": { "type": "number" },
+        "bgColor": { "type": "string" },
+        "textColor": { "type": "string" }
+      },
+      "required": ["text", "enabled"]
+    },
+    "dockConfig": {
+      "title": "MobileDockConfig",
+      "description": "Pengaturan docker navigasi bawah pada layar smartphone",
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "blurEffect": { "type": "boolean" },
+        "showLabels": { "type": "boolean" },
+        "items": { "type": "array" }
+      },
+      "required": ["enabled", "items"]
+    },
+    "serviceItem": {
+      "title": "ServiceItem",
+      "description": "Daftar unit poliklinik dan layanan faskes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "schedule": { "type": "string" },
+        "queueCode": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "mitraItem": {
+      "title": "MitraItem",
+      "description": "Jaringan puskesmas pembantu dan poskesdes desa binaan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "village": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "name", "village"]
+    },
+    "newsItem": {
+      "title": "NewsItem",
+      "description": "Informasi edukasi, berita, dan pengumuman masyarakat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string", "description": "Tautan URL foto Drive berbentuk teks" }
+      },
+      "required": ["id", "title"]
+    },
+    "systemItem": {
+      "title": "DigitalSystemItem",
+      "description": "Tautan integrasi sistem layanan kesehatan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "url": { "type": "string" },
+        "category": { "type": "string" }
+      },
+      "required": ["id", "name", "url"]
+    },
+    "driveFileItem": {
+      "title": "DriveFileItem",
+      "description": "Metadata file publik Google Drive yang disimpan sebagai teks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "fileId": { "type": "string" },
+        "webViewLink": { "type": "string" },
+        "thumbnailLink": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "testConnection": {
+      "title": "TestConnection",
+      "description": "Dokumen uji koneksi Firebase Firestore",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string" },
+        "timestamp": { "type": "number" }
+      }
+    }
+  },
+  "firestore": {
+    "/config/{configId}": {
+      "schema": { "$ref": "siteSettings" },
+      "description": "Dokumen konfigurasi global web (siteSettings, marqueeSettings, dockConfig)"
+    },
+    "/services/{serviceId}": {
+      "schema": { "$ref": "serviceItem" },
+      "description": "Data layanan dan poli Puskesmas Kepanjen"
+    },
+    "/mitra/{mitraId}": {
+      "schema": { "$ref": "mitraItem" },
+      "description": "Data mitra faskes binaan (Ponkesdes/Pustu/Poskesdes)"
+    },
+    "/news/{newsId}": {
+      "schema": { "$ref": "newsItem" },
+      "description": "Berita dan pengumuman kegiatan kesehatan"
+    },
+    "/systems/{systemId}": {
+      "schema": { "$ref": "systemItem" },
+      "description": "Daftar aplikasi dan sistem kesehatan digital"
+    },
+    "/gallery/{fileId}": {
+      "schema": { "$ref": "driveFileItem" },
+      "description": "Daftar metadata file Google Drive yang disimpan sebagai teks"
+    },
+    "/test/{testId}": {
+      "schema": { "$ref": "testConnection" },
+      "description": "Koleksi uji konektivitas client ke server Firestore"
+    }
+  }
+}

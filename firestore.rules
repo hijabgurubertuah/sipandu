@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check valid string
+    function isNonEmptyString(str, minLen, maxLen) {
+      return str is string && str.size() >= minLen && str.size() <= maxLen;
+    }
+
+    // Ensure images are stored strictly as text links/URLs, not giant blobs
+    function isTextUrlOrEmpty(val) {
+      return val == null || (val is string && val.size() <= 4096);
+    }
+
+    // Config collection (siteSettings, marqueeSettings, dockConfig)
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().size() <= 30;
+    }
+
+    // Services (Poli & Layanan)
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if isTextUrlOrEmpty(request.resource.data.get('icon', ''));
+    }
+
+    // Mitra Pelayanan Faskes
+    match /mitra/{mitraId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().size() <= 20;
+    }
+
+    // News & Announcements
+    match /news/{newsId} {
+      allow read: if true;
+      allow write: if isTextUrlOrEmpty(request.resource.data.get('imageUrl', ''));
+    }
+
+    // Digital Systems
+    match /systems/{systemId} {
+      allow read: if true;
+      allow write: if request.resource.data.keys().size() <= 20;
+    }
+
+    // Drive File Gallery Metadata
+    match /gallery/{fileId} {
+      allow read: if true;
+      allow write: if isTextUrlOrEmpty(request.resource.data.get('thumbnailUrl', '')) 
+                   && isTextUrlOrEmpty(request.resource.data.get('driveUrl', ''));
+    }
+
+    // Test connectivity
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+  }
+}

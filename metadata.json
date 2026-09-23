@@ -1,0 +1,8 @@
+{
+  "name": "Remix SIPANDU PEDULI - Puskesmas Kepanjen",
+  "description": "Portal Digital Puskesmas Kepanjen - Sistem Pantau Data Dukung Pelaksanaan, Dokumentasi, dan Evaluasi untuk Layanan Integratif",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

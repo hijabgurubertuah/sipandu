@@ -1,0 +1,10 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#047857"/>
+  <circle cx="256" cy="256" r="190" fill="#065f46" stroke="#34d399" stroke-width="8" stroke-dasharray="8 8"/>
+  <circle cx="256" cy="256" r="170" fill="#ffffff"/>
+  <!-- Medical Cross / Plus Symbol -->
+  <path d="M226 128H286V226H384V286H286V384H226V286H128V226H226V128Z" fill="#059669"/>
+  <!-- Center Heart or Star Emblem -->
+  <circle cx="256" cy="256" r="32" fill="#047857"/>
+  <path d="M256 242C259 238 266 238 269 242C272 246 272 252 268 256L256 268L244 256C240 252 240 246 243 242C246 238 253 238 256 242Z" fill="#34d399"/>
+</svg>
