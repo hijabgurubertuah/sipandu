@@ -116,6 +116,62 @@ export interface HealthPostMitra {
   operationalHours: string;
 }
 
+export type PosyanduReportStatus = 
+  | 'BELUM LAPOR'
+  | 'DRAFT'
+  | 'SUDAH LAPOR'
+  | 'BELUM LENGKAP'
+  | 'MENUNGGU VERIFIKASI'
+  | 'TERVERIFIKASI'
+  | 'PERLU PERBAIKAN';
+
+export interface PosyanduChecklist {
+  kunjunganInputted: boolean;     // 1. Apakah data kunjungan sudah diinput?
+  pelayananCompleted: boolean;    // 2. Apakah data pelayanan sudah lengkap?
+  kunjunganRumahInputted: boolean;// 3. Apakah data kunjungan rumah sudah diinput?
+  administrasiCompleted: boolean; // 4. Apakah administrasi kegiatan sudah lengkap?
+}
+
+export interface PosyanduMonthlyRecord {
+  status: PosyanduReportStatus;
+  kunjunganCount?: number;
+  pelayananCount?: number;
+  kunjunganRumahCount?: number;
+  sasaranCount?: number;
+  updatedAt?: string;
+}
+
+export interface PosyanduItem {
+  id: string;               // e.g. "KPN-001"
+  number: number;           // 1 to 108
+  name: string;             // e.g. "ANGGREK 1 KEPANJEN"
+  village: string;          // e.g. "KEPANJEN"
+  address: string;          // e.g. "RW 01, Kelurahan Kepanjen"
+  status: 'Aktif' | 'Nonaktif';
+  isActive?: boolean;
+  systemUrl: string;        // Link Sistem/Portal Posyandu
+  reportFormUrl: string;    // Link Form Pelaporan
+  docUrl: string;           // Link Dokumen/Data
+  villageInfoUrl: string;   // Link Informasi Desa (Linktree)
+  reportStatus: PosyanduReportStatus;
+  lastUpdated: string;
+  reportPeriodMonth?: string;
+  checklist?: PosyanduChecklist;
+  notes?: string;           // Catatan evaluasi/revisi kader koordinator
+  verificationNotes?: string;
+  verifiedBy?: string;      // Nama verifikator (Kader Koordinator Desa / Puskesmas)
+  verifiedAt?: string;
+  monthlyStatus?: Record<number, PosyanduMonthlyRecord>; // Month 1-12 (Jan - Des)
+}
+
+export interface VillageData {
+  id: string;
+  name: string;
+  type: 'Kelurahan' | 'Desa';
+  linktreeUrl: string;
+  posyanduCount: number;
+}
+
 export interface NewsAnnouncement {
   id: string;
   title: string;

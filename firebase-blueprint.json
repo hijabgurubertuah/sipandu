@@ -116,6 +116,26 @@
         "status": { "type": "string" },
         "timestamp": { "type": "number" }
       }
+    },
+    "posyanduItem": {
+      "title": "PosyanduItem",
+      "description": "Master Data dan Status Pelaporan 108 Posyandu Kecamatan Kepanjen",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "number" },
+        "name": { "type": "string" },
+        "village": { "type": "string" },
+        "address": { "type": "string" },
+        "status": { "type": "string" },
+        "systemUrl": { "type": "string" },
+        "reportFormUrl": { "type": "string" },
+        "docUrl": { "type": "string" },
+        "villageInfoUrl": { "type": "string" },
+        "reportStatus": { "type": "string" },
+        "lastUpdated": { "type": "string" }
+      },
+      "required": ["id", "name", "village"]
     }
   },
   "firestore": {
@@ -130,6 +150,10 @@
     "/mitra/{mitraId}": {
       "schema": { "$ref": "mitraItem" },
       "description": "Data mitra faskes binaan (Ponkesdes/Pustu/Poskesdes)"
+    },
+    "/posyandu/{posyanduId}": {
+      "schema": { "$ref": "posyanduItem" },
+      "description": "Master data 108 Posyandu se-Kecamatan Kepanjen, status pelaporan dan tautan sistem"
     },
     "/news/{newsId}": {
       "schema": { "$ref": "newsItem" },

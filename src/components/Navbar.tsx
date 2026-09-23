@@ -77,7 +77,7 @@ export default function Navbar({
     { id: 'informasi', label: 'Informasi & Publik' },
     { id: 'sistem', label: 'Sistem Digital' },
     { id: 'monitoring', label: 'Data & Monitoring' },
-    { id: 'mitra', label: 'Mitra Faskes' },
+    { id: 'mitra', label: '108 Posyandu & Mitra' },
     { id: 'pengaduan', label: 'Pengaduan' }
   ];
 

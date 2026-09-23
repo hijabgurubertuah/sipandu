@@ -18,7 +18,8 @@ import {
   ServiceItem, 
   DigitalSystemItem, 
   NewsAnnouncement, 
-  DriveFileItem 
+  DriveFileItem,
+  PosyanduItem
 } from '../types';
 
 // Initialize Firebase App
@@ -41,6 +42,7 @@ export interface FirestoreMetricStats {
     services: number;
     news: number;
     mitra: number;
+    posyandu: number;
     systems: number;
     gallery: number;
   };
@@ -249,6 +251,54 @@ export async function saveSingleNewsToFirestore(news: NewsAnnouncement): Promise
 }
 
 /**
+ * Save Posyandu List to Firestore (Chunks of up to 400 for safety)
+ */
+export async function savePosyanduListToFirestore(posyanduList: PosyanduItem[]): Promise<void> {
+  const chunkSize = 400;
+  for (let i = 0; i < posyanduList.length; i += chunkSize) {
+    const chunk = posyanduList.slice(i, i + chunkSize);
+    const batch = writeBatch(db);
+    chunk.forEach((p) => {
+      const ref = doc(db, 'posyandu', p.id);
+      const sanitizedObj = {
+        ...p,
+        systemUrl: sanitizeToDriveTextUrl(p.systemUrl),
+        reportFormUrl: sanitizeToDriveTextUrl(p.reportFormUrl),
+        docUrl: sanitizeToDriveTextUrl(p.docUrl),
+        villageInfoUrl: sanitizeToDriveTextUrl(p.villageInfoUrl)
+      };
+      const cleanObj = Object.fromEntries(Object.entries(sanitizedObj).filter(([_, v]) => v !== undefined));
+      batch.set(ref, cleanObj, { merge: true });
+    });
+    await batch.commit();
+  }
+  recordOp('write', posyanduList.length || 1);
+}
+
+/**
+ * Save a single Posyandu document to Firestore
+ */
+export async function saveSinglePosyanduToFirestore(posyandu: PosyanduItem): Promise<void> {
+  const ref = doc(db, 'posyandu', posyandu.id);
+  const sanitizedObj = {
+    ...posyandu,
+    systemUrl: sanitizeToDriveTextUrl(posyandu.systemUrl),
+    reportFormUrl: sanitizeToDriveTextUrl(posyandu.reportFormUrl),
+    docUrl: sanitizeToDriveTextUrl(posyandu.docUrl),
+    villageInfoUrl: sanitizeToDriveTextUrl(posyandu.villageInfoUrl)
+  };
+  const cleanObj = Object.fromEntries(Object.entries(sanitizedObj).filter(([_, v]) => v !== undefined));
+  await setDoc(ref, cleanObj, { merge: true });
+  recordOp('write', 1);
+}
+
+export async function deletePosyanduFromFirestore(id: string): Promise<void> {
+  const ref = doc(db, 'posyandu', id);
+  await deleteDoc(ref);
+  recordOp('write', 1);
+}
+
+/**
  * Save Gallery Metadata to Firestore (Links & IDs stored purely as text)
  */
 export async function saveGalleryToFirestore(gallery: DriveFileItem[]): Promise<void> {
@@ -273,6 +323,7 @@ export async function loadAllDataFromFirestore(): Promise<{
   marqueeSettings?: MarqueeSettings;
   dockConfig?: MobileDockConfig;
   mitraList?: HealthPostMitra[];
+  posyanduList?: PosyanduItem[];
   services?: ServiceItem[];
   systems?: DigitalSystemItem[];
   newsList?: NewsAnnouncement[];
@@ -293,6 +344,7 @@ export async function loadAllDataFromFirestore(): Promise<{
       services: 0,
       news: 0,
       mitra: 0,
+      posyandu: 0,
       systems: 0,
       gallery: 0
     }
@@ -333,6 +385,13 @@ export async function loadAllDataFromFirestore(): Promise<{
       stats.documentCounts.mitra = mSnap.size;
     }
 
+    // 4b. Posyandu 108
+    const posyanduSnap = await getDocs(collection(db, 'posyandu'));
+    if (!posyanduSnap.empty) {
+      result.posyanduList = posyanduSnap.docs.map((d) => d.data() as PosyanduItem);
+      stats.documentCounts.posyandu = posyanduSnap.size;
+    }
+
     // 5. Systems
     const sysSnap = await getDocs(collection(db, 'systems'));
     if (!sysSnap.empty) {
@@ -348,7 +407,7 @@ export async function loadAllDataFromFirestore(): Promise<{
     }
 
     stats.lastLatencyMs = Math.round(performance.now() - start);
-    recordOp('read', 6);
+    recordOp('read', 7);
   } catch (err) {
     console.warn('Firestore load failed, falling back to local storage:', err);
     stats.isConnected = false;

@@ -95,8 +95,8 @@ export default function PublicMobileSidebar({
     },
     {
       id: 'mitra',
-      label: 'Jejaring Pustu & Posyandu',
-      desc: 'Faskes mitra & Posyandu ILP',
+      label: '108 Posyandu & Mitra Faskes',
+      desc: 'Direktori 108 Posyandu di 18 Desa & Pustu',
       icon: Users,
       color: 'text-amber-600 dark:text-amber-400',
       bg: 'bg-amber-50 dark:bg-amber-950/60'

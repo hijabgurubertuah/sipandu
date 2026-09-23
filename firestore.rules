@@ -30,6 +30,15 @@ service cloud.firestore {
       allow write: if request.resource.data.keys().size() <= 20;
     }
 
+    // Master 108 Posyandu & Status Pelaporan
+    match /posyandu/{posyanduId} {
+      allow read: if true;
+      allow write: if isTextUrlOrEmpty(request.resource.data.get('systemUrl', ''))
+                   && isTextUrlOrEmpty(request.resource.data.get('reportFormUrl', ''))
+                   && isTextUrlOrEmpty(request.resource.data.get('docUrl', ''))
+                   && isTextUrlOrEmpty(request.resource.data.get('villageInfoUrl', ''));
+    }
+
     // News & Announcements
     match /news/{newsId} {
       allow read: if true;

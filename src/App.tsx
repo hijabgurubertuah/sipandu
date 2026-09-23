@@ -20,7 +20,8 @@ import {
   ServiceItem,
   DigitalSystemItem,
   NewsAnnouncement,
-  MobileDockConfig
+  MobileDockConfig,
+  PosyanduItem
 } from './types';
 import {
   MOCK_USERS,
@@ -37,10 +38,11 @@ import {
   DEFAULT_DOCK_CONFIG,
   MOCK_DRIVE_GALLERY
 } from './data/mockData';
+import { generateDefault108Posyandu } from './data/posyanduData';
 import MobileDock from './components/MobileDock';
 import PublicMobileSidebar from './components/PublicMobileSidebar';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
-import { loadAllFromFirestore } from './lib/firebase';
+import { loadAllFromFirestore, saveSinglePosyanduToFirestore } from './lib/firebase';
 import { cacheImageLocally, updateDynamicFavicon } from './lib/imageCache';
 
 export default function App() {
@@ -141,6 +143,20 @@ export default function App() {
     return localStorage.getItem('sipandu_admin_pwd') || 'sipandu123';
   });
 
+  // Master 108 Posyandu State with LocalStorage & Cloud Persistence
+  const [posyanduList, setPosyanduList] = useState<PosyanduItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('sipandu_posyandu_list');
+      return saved ? JSON.parse(saved) : generateDefault108Posyandu();
+    } catch {
+      return generateDefault108Posyandu();
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sipandu_posyandu_list', JSON.stringify(posyanduList));
+  }, [posyanduList]);
+
   // Helper to migrate legacy dock items (e.g. Chat WA -> Info, SIPANDU -> Berita)
   const sanitizeDockConfig = (cfg: MobileDockConfig): MobileDockConfig => {
     if (!cfg || !Array.isArray(cfg.items)) return DEFAULT_DOCK_CONFIG;
@@ -230,6 +246,7 @@ export default function App() {
       if (data.systems && data.systems.length > 0) setSystems(data.systems);
       if (data.newsList && data.newsList.length > 0) setNewsList(data.newsList);
       if (data.gallery && data.gallery.length > 0) setDriveGallery(data.gallery);
+      if (data.posyanduList && data.posyanduList.length > 0) setPosyanduList(data.posyanduList);
     } catch (e) {
       console.warn('Initial cloud sync error:', e);
     }
@@ -238,6 +255,11 @@ export default function App() {
   useEffect(() => {
     fetchCloudData();
   }, []);
+
+  const handleUpdateSinglePosyandu = (updated: PosyanduItem) => {
+    setPosyanduList((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    saveSinglePosyanduToFirestore(updated).catch((e) => console.warn('Cloud sync error for Posyandu:', e));
+  };
 
   // Operational Data states with persistence
   const [documents, setDocuments] = useState<DocumentItem[]>(MOCK_DOCUMENTS);
@@ -397,6 +419,8 @@ export default function App() {
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             siteSettings={siteSettings}
+            posyanduList={posyanduList}
+            onUpdatePosyandu={handleUpdateSinglePosyandu}
           />
         ) : currentView === 'pegawai' ? (
           <PortalPegawai
@@ -410,6 +434,8 @@ export default function App() {
             onSelectDocument={setSelectedDocModal}
             onVerifyDocument={handleVerifyDocument}
             onVerifyIndicator={handleVerifyIndicator}
+            posyanduList={posyanduList}
+            onUpdatePosyandu={handleUpdateSinglePosyandu}
           />
         ) : (
           <AdminPortal
@@ -431,6 +457,8 @@ export default function App() {
             onUpdateDockConfig={setDockConfig}
             adminPassword={adminPassword}
             onUpdateAdminPassword={setAdminPassword}
+            posyanduList={posyanduList}
+            onUpdatePosyanduList={setPosyanduList}
             onExitAdmin={() => {
               setCurrentView('public');
               window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -35,9 +35,11 @@ import {
   HealthPostMitra,
   NewsAnnouncement,
   ComplaintItem,
-  SiteSettings
+  SiteSettings,
+  PosyanduItem
 } from '../types';
 import { PUSKESMAS_INFO, VILLAGES_KEPANJEN, POSYANDU_VILLAGE_SUMMARY } from '../data/mockData';
+import PosyanduMonitoringHub from './PosyanduMonitoringHub';
 
 interface PublicAreaProps {
   activeTab: string;
@@ -53,6 +55,8 @@ interface PublicAreaProps {
   onSelectDocument: (doc: DocumentItem) => void;
   onOpenPegawaiPortal: () => void;
   siteSettings?: SiteSettings;
+  posyanduList?: PosyanduItem[];
+  onUpdatePosyandu?: (updated: PosyanduItem) => void;
 }
 
 export default function PublicArea({
@@ -68,7 +72,9 @@ export default function PublicArea({
   onSubmitComplaint,
   onSelectDocument,
   onOpenPegawaiPortal,
-  siteSettings
+  siteSettings,
+  posyanduList = [],
+  onUpdatePosyandu = () => {}
 }: PublicAreaProps) {
   // Service filter state
   const [selectedService, setSelectedService] = useState<ServiceItem | null>(services[0]);
@@ -1048,54 +1054,12 @@ export default function PublicArea({
             </p>
           </div>
 
-          {/* Section: Direktori Master 108 Posyandu di 18 Desa */}
-          <div className="p-6 rounded-3xl bg-slate-900 text-white shadow-xl space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Master Data Resmi
-                </span>
-                <h3 className="text-lg font-bold text-white mt-1">
-                  Direktori 108 Posyandu Terintegrasi (18 Desa / Kelurahan)
-                </h3>
-              </div>
-              <div className="text-right">
-                <span className="text-2xl font-black text-emerald-400">108</span>
-                <span className="text-xs text-slate-400 block">Posyandu Aktif Binaan</span>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {POSYANDU_VILLAGE_SUMMARY.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 hover:border-emerald-500/60 transition"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-emerald-300">{item.village}</span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-black">
-                      {item.count} Posyandu
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {item.posyandus.slice(0, 4).map((pName, pIdx) => (
-                      <span
-                        key={pIdx}
-                        className="px-2 py-0.5 rounded bg-slate-900 text-[10px] font-medium text-slate-300 border border-slate-700"
-                      >
-                        {pName}
-                      </span>
-                    ))}
-                    {item.posyandus.length > 4 && (
-                      <span className="px-1.5 py-0.5 text-[10px] text-slate-400">
-                        +{item.posyandus.length - 4} lagi
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Integration Hub: 108 Posyandu & Monitoring */}
+          <PosyanduMonitoringHub
+            posyanduList={posyanduList}
+            onUpdatePosyandu={onUpdatePosyandu}
+            isPortalPegawaiOrAdmin={false}
+          />
 
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">

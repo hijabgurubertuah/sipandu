@@ -32,9 +32,11 @@ import {
   IndicatorMetric,
   ActivityLogItem,
   UnitCluster,
-  ComplaintItem
+  ComplaintItem,
+  PosyanduItem
 } from '../types';
 import { MOCK_USERS } from '../data/mockData';
+import PosyanduMonitoringHub from './PosyanduMonitoringHub';
 
 interface PortalPegawaiProps {
   currentUser: UserAccount;
@@ -47,6 +49,8 @@ interface PortalPegawaiProps {
   onSelectDocument: (doc: DocumentItem) => void;
   onVerifyDocument: (id: string) => void;
   onVerifyIndicator: (id: string) => void;
+  posyanduList?: PosyanduItem[];
+  onUpdatePosyandu?: (updated: PosyanduItem) => void;
 }
 
 export default function PortalPegawai({
@@ -59,7 +63,9 @@ export default function PortalPegawai({
   onOpenAddDocument,
   onSelectDocument,
   onVerifyDocument,
-  onVerifyIndicator
+  onVerifyIndicator,
+  posyanduList = [],
+  onUpdatePosyandu = () => {}
 }: PortalPegawaiProps) {
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   
@@ -67,7 +73,7 @@ export default function PortalPegawai({
   
   // Navigation inside Portal Pegawai
   const [activeMenu, setActiveMenu] = useState<
-    'dashboard' | 'tu' | 'klaster' | 'sasaran' | 'perencanaan' | 'prioritas' | 'monev' | 'akreditasi' | 'admin'
+    'dashboard' | 'posyandu' | 'tu' | 'klaster' | 'sasaran' | 'perencanaan' | 'prioritas' | 'monev' | 'akreditasi' | 'admin'
   >('dashboard');
 
   // Selected Cluster for Klaster ILP tab
@@ -93,6 +99,7 @@ export default function PortalPegawai({
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard Pegawai', icon: LayoutDashboard },
+    { id: 'posyandu', label: 'Monev 108 Posyandu', icon: Layers },
     { id: 'tu', label: 'Tata Usaha', icon: Briefcase },
     { id: 'klaster', label: 'Klaster ILP', icon: Layers },
     { id: 'sasaran', label: 'Data Sasaran', icon: Database },
@@ -501,6 +508,17 @@ export default function PortalPegawai({
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* ================= SECTION: MONEV 108 POSYANDU ================= */}
+      {activeMenu === 'posyandu' && (
+        <div className="space-y-6">
+          <PosyanduMonitoringHub
+            posyanduList={posyanduList}
+            onUpdatePosyandu={onUpdatePosyandu}
+            isPortalPegawaiOrAdmin={true}
+          />
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent, type ChangeEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import {
   Settings,
@@ -46,7 +46,9 @@ import {
   Bookmark,
   Search,
   FileText,
-  Pencil
+  Pencil,
+  Download,
+  Filter
 } from 'lucide-react';
 import NewsEditorModal from './NewsEditorModal';
 import {
@@ -58,10 +60,12 @@ import {
   DigitalSystemItem,
   NewsAnnouncement,
   MobileDockConfig,
-  MobileDockItem
+  MobileDockItem,
+  PosyanduItem
 } from '../types';
 import { VILLAGES_KEPANJEN, DEFAULT_DOCK_CONFIG } from '../data/mockData';
 import FirebaseStatusTab from './FirebaseStatusTab';
+import PosyanduMonitoringHub from './PosyanduMonitoringHub';
 import { getSyncCachedImage } from '../lib/imageCache';
 import {
   saveSiteSettingsToFirestore,
@@ -73,6 +77,8 @@ import {
   saveNewsToFirestore,
   saveSingleNewsToFirestore,
   saveGalleryToFirestore,
+  savePosyanduListToFirestore,
+  saveSinglePosyanduToFirestore,
   deleteNewsFromFirestore,
   deleteMitraFromFirestore,
   deleteServiceFromFirestore,
@@ -102,6 +108,8 @@ interface AdminPortalProps {
   onExitAdmin: () => void;
   onOpenPegawaiPortal?: () => void;
   onRefreshData?: () => Promise<void>;
+  posyanduList?: PosyanduItem[];
+  onUpdatePosyanduList?: (newList: PosyanduItem[]) => void;
 }
 
 export default function AdminPortal({
@@ -125,7 +133,9 @@ export default function AdminPortal({
   onUpdateAdminPassword,
   onExitAdmin,
   onOpenPegawaiPortal,
-  onRefreshData
+  onRefreshData,
+  posyanduList = [],
+  onUpdatePosyanduList = () => {}
 }: AdminPortalProps) {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -138,6 +148,7 @@ export default function AdminPortal({
   // Active Menu Section
   const [activeTab, setActiveTab] = useState<
     | 'overview'
+    | 'posyandu'
     | 'identity'
     | 'marquee'
     | 'dock'
@@ -267,6 +278,36 @@ export default function AdminPortal({
   const [isNewsEditorOpen, setIsNewsEditorOpen] = useState(false);
   const [editingNewsItem, setEditingNewsItem] = useState<NewsAnnouncement | null>(null);
 
+  // 9. Master 108 Posyandu Admin States
+  const [posyanduSearch, setPosyanduSearch] = useState('');
+  const [posyanduVillageFilter, setPosyanduVillageFilter] = useState('ALL');
+  const [posyanduStatusFilter, setPosyanduStatusFilter] = useState('ALL');
+  const [posyanduAdminSubView, setPosyanduAdminSubView] = useState<'table' | 'hub'>('table');
+  const [editingPosyandu, setEditingPosyandu] = useState<PosyanduItem | null>(null);
+  const [isPosyanduModalOpen, setIsPosyanduModalOpen] = useState(false);
+  const [isSyncingPosyandu, setIsSyncingPosyandu] = useState(false);
+
+  const filteredAdminPosyandu = useMemo(() => {
+    return posyanduList.filter((p) => {
+      const matchSearch =
+        posyanduSearch === '' ||
+        p.name.toLowerCase().includes(posyanduSearch.toLowerCase()) ||
+        p.village.toLowerCase().includes(posyanduSearch.toLowerCase()) ||
+        p.address.toLowerCase().includes(posyanduSearch.toLowerCase());
+      const matchVillage = posyanduVillageFilter === 'ALL' || p.village === posyanduVillageFilter;
+      const matchStatus = posyanduStatusFilter === 'ALL' || p.reportStatus === posyanduStatusFilter;
+      return matchSearch && matchVillage && matchStatus;
+    });
+  }, [posyanduList, posyanduSearch, posyanduVillageFilter, posyanduStatusFilter]);
+
+  const posyanduStats = useMemo(() => {
+    const verified = posyanduList.filter((p) => p.reportStatus === 'TERVERIFIKASI').length;
+    const reported = posyanduList.filter((p) => p.reportStatus === 'SUDAH LAPOR').length;
+    const incomplete = posyanduList.filter((p) => p.reportStatus === 'BELUM LENGKAP' || p.reportStatus === 'PERLU PERBAIKAN').length;
+    const pending = posyanduList.filter((p) => p.reportStatus === 'BELUM LAPOR' || p.reportStatus === 'DRAFT').length;
+    return { verified, reported, incomplete, pending };
+  }, [posyanduList]);
+
   // Custom Confirmation Dialog States
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmTitle, setConfirmTitle] = useState('');
@@ -274,7 +315,7 @@ export default function AdminPortal({
   const [confirmCallback, setConfirmCallback] = useState<(() => void | Promise<void>) | null>(null);
   const [confirmIsDanger, setConfirmIsDanger] = useState(true);
 
-  const isAnyModalOpen = mobileSidebarOpen || isMitraModalOpen || isServiceModalOpen || showConfirm;
+  const isAnyModalOpen = mobileSidebarOpen || isMitraModalOpen || isServiceModalOpen || isPosyanduModalOpen || showConfirm;
   useBodyScrollLock(isAnyModalOpen);
 
   const triggerConfirm = (
@@ -444,6 +485,66 @@ export default function AdminPortal({
     } finally {
       setIsSavingCloud(false);
     }
+  };
+
+  // Posyandu Management Action Handlers
+  const handleOpenEditPosyandu = (posyandu: PosyanduItem) => {
+    setEditingPosyandu({ ...posyandu });
+    setIsPosyanduModalOpen(true);
+  };
+
+  const handleSavePosyanduForm = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingPosyandu) return;
+
+    const updated = posyanduList.map((p) => (p.id === editingPosyandu.id ? editingPosyandu : p));
+    onUpdatePosyanduList(updated);
+    setIsPosyanduModalOpen(false);
+
+    try {
+      await saveSinglePosyanduToFirestore(editingPosyandu);
+      showToast(`Data "${editingPosyandu.name}" berhasil disimpan ke Firebase Firestore!`);
+    } catch (err: any) {
+      showToast(`Data disimpan secara lokal. (${err.message || 'Offline'})`);
+    }
+  };
+
+  const handleSyncAllPosyanduToFirestore = async () => {
+    setIsSyncingPosyandu(true);
+    try {
+      await savePosyanduListToFirestore(posyanduList);
+      showToast(`✅ Seluruh ${posyanduList.length} Posyandu berhasil disinkronkan ke Firebase Firestore!`);
+    } catch (err: any) {
+      showToast('Gagal sinkron ke Firebase: ' + (err.message || 'Error'));
+    } finally {
+      setIsSyncingPosyandu(false);
+    }
+  };
+
+  const handleExportPosyanduCSV = () => {
+    const headers = ['ID', 'Nama Posyandu', 'Desa', 'Alamat/RW', 'Status Aktif', 'Status Lapor', 'Bulan Pelaporan', 'Link Sistem', 'Link Form', 'Link Dokumen', 'Link Info Desa'];
+    const rows = posyanduList.map((p) => [
+      p.id,
+      `"${p.name}"`,
+      `"${p.village}"`,
+      `"${p.address}"`,
+      p.isActive ? 'Aktif' : 'Nonaktif',
+      p.reportStatus,
+      `"${p.reportPeriodMonth || '-'}"`,
+      `"${p.systemUrl || ''}"`,
+      `"${p.reportFormUrl || ''}"`,
+      `"${p.docUrl || ''}"`,
+      `"${p.villageInfoUrl || ''}"`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Master_108_Posyandu_Kepanjen_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Data master 108 Posyandu berhasil diunduh dalam format CSV!');
   };
 
   const handleUpdateDockItem = (id: string, updates: Partial<MobileDockItem>) => {
@@ -1259,6 +1360,7 @@ function doGet(e) {
   // ----------------------------------------------------
   const navMenuItems = [
     { id: 'overview', label: 'Ringkasan & Status', icon: LayoutGrid, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { id: 'posyandu', label: 'Master 108 Posyandu', icon: Layers, color: 'text-teal-600', bg: 'bg-teal-500/10' },
     { id: 'pegawai', label: 'Portal Pegawai Internal', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
     { id: 'identity', label: 'Identitas & Logo', icon: Image, color: 'text-teal-500', bg: 'bg-teal-500/10' },
     { id: 'marquee', label: 'Teks Berjalan (Marquee)', icon: Type, color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
@@ -1808,6 +1910,301 @@ function doGet(e) {
                 </button>
               </div>
 
+            </div>
+          )}
+
+          {/* ================= TAB: MASTER 108 POSYANDU ================= */}
+          {activeTab === 'posyandu' && (
+            <div className="space-y-6">
+              {/* Header Box */}
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-xs space-y-6">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-600 flex items-center justify-center shrink-0 shadow-xs">
+                      <Layers className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                          Integrasi 18 Desa / Kelurahan
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          Total: {posyanduList.length} Posyandu
+                        </span>
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        Master Direktori 108 Posyandu
+                      </h2>
+                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                        Pusat kendali master data, tautan sistem mandiri, Google Form laporan, link Google Drive eviden, dan evaluasi kendali mutu Posyandu ILP wilayah kerja Puskesmas Kepanjen.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleExportPosyanduCSV}
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-2xs"
+                    >
+                      <Download className="w-4 h-4 text-emerald-600" />
+                      <span>Unduh CSV</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSyncAllPosyanduToFirestore}
+                      disabled={isSyncingPosyandu}
+                      className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <UploadCloud className="w-4 h-4" />
+                      <span>{isSyncingPosyandu ? 'Menyinkronkan...' : 'Sinkronkan 108 ke Cloud'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* KPI Summary Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  <div className="p-4 rounded-2xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40">
+                    <span className="text-[11px] font-semibold text-teal-800 dark:text-teal-300 block">Total Posyandu Binaan</span>
+                    <span className="text-2xl font-black text-teal-700 dark:text-teal-300 mt-1 block">{posyanduList.length}</span>
+                    <span className="text-[10px] text-teal-600/80 dark:text-teal-400/80 mt-0.5 block">18 Desa / Kelurahan</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
+                    <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 block">Laporan Terverifikasi</span>
+                    <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300 mt-1 block">{posyanduStats.verified}</span>
+                    <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5 block">Eviden & form valid</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40">
+                    <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 block">Menunggu Verifikasi</span>
+                    <span className="text-2xl font-black text-amber-700 dark:text-amber-300 mt-1 block">{posyanduStats.reported}</span>
+                    <span className="text-[10px] text-amber-600/80 dark:text-amber-400/80 mt-0.5 block">Sudah kirim laporan</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40">
+                    <span className="text-[11px] font-semibold text-rose-800 dark:text-rose-300 block">Belum / Perlu Revisi</span>
+                    <span className="text-2xl font-black text-rose-700 dark:text-rose-300 mt-1 block">{posyanduStats.incomplete + posyanduStats.pending}</span>
+                    <span className="text-[10px] text-rose-600/80 dark:text-rose-400/80 mt-0.5 block">Perlu konfirmasi kader</span>
+                  </div>
+                </div>
+
+                {/* Subview Toggle */}
+                <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setPosyanduAdminSubView('table')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                      posyanduAdminSubView === 'table'
+                        ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Daftar Tabel & Tautan URL</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPosyanduAdminSubView('hub')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                      posyanduAdminSubView === 'hub'
+                        ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    <span>QC Verifikasi & Hub Monitoring</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Subview 1: Table & URL Manager */}
+              {posyanduAdminSubView === 'table' ? (
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-xs space-y-5">
+                  {/* Filters */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative grow">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={posyanduSearch}
+                        onChange={(e) => setPosyanduSearch(e.target.value)}
+                        placeholder="Cari nama Posyandu, desa, atau alamat RW..."
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                      />
+                    </div>
+
+                    <div className="sm:w-56">
+                      <select
+                        value={posyanduVillageFilter}
+                        onChange={(e) => setPosyanduVillageFilter(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                      >
+                        <option value="ALL">Semua 18 Desa / Kelurahan</option>
+                        {VILLAGES_KEPANJEN.map((v) => (
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="sm:w-48">
+                      <select
+                        value={posyanduStatusFilter}
+                        onChange={(e) => setPosyanduStatusFilter(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                      >
+                        <option value="ALL">Semua Status Laporan</option>
+                        <option value="TERVERIFIKASI">Terverifikasi</option>
+                        <option value="SUDAH LAPOR">Sudah Lapor</option>
+                        <option value="BELUM LENGKAP">Belum Lengkap</option>
+                        <option value="PERLU PERBAIKAN">Perlu Perbaikan</option>
+                        <option value="DRAFT">Draft</option>
+                        <option value="BELUM LAPOR">Belum Lapor</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                          <th className="py-3 px-4 w-12 text-center">No</th>
+                          <th className="py-3 px-4">Nama Posyandu</th>
+                          <th className="py-3 px-4">Desa & Alamat</th>
+                          <th className="py-3 px-4">Kelengkapan Tautan Digital</th>
+                          <th className="py-3 px-4">Status Laporan</th>
+                          <th className="py-3 px-4 text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {filteredAdminPosyandu.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
+                              Tidak ada data Posyandu yang sesuai filter pencarian.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredAdminPosyandu.map((pos, idx) => (
+                            <tr key={pos.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-850/50 transition">
+                              <td className="py-3 px-4 text-center font-bold text-slate-400">
+                                {idx + 1}
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full shrink-0 ${pos.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                  <span className="font-extrabold text-slate-900 dark:text-white">
+                                    {pos.name}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 block mt-0.5">
+                                  ID: {pos.id}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="font-bold text-teal-700 dark:text-teal-300 block">
+                                  {pos.village}
+                                </span>
+                                <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate max-w-[200px]">
+                                  {pos.address}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span
+                                    title={pos.systemUrl ? `Sistem: ${pos.systemUrl}` : 'Tautan Sistem belum diset'}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      pos.systemUrl
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                        : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                                    }`}
+                                  >
+                                    Sistem
+                                  </span>
+                                  <span
+                                    title={pos.reportFormUrl ? `Form: ${pos.reportFormUrl}` : 'Tautan Form belum diset'}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      pos.reportFormUrl
+                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300'
+                                        : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                                    }`}
+                                  >
+                                    Form
+                                  </span>
+                                  <span
+                                    title={pos.docUrl ? `Drive: ${pos.docUrl}` : 'Tautan Drive belum diset'}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      pos.docUrl
+                                        ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300'
+                                        : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                                    }`}
+                                  >
+                                    Drive
+                                  </span>
+                                  <span
+                                    title={pos.villageInfoUrl ? `Info: ${pos.villageInfoUrl}` : 'Tautan Info belum diset'}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      pos.villageInfoUrl
+                                        ? 'bg-teal-100 text-teal-800 dark:bg-teal-950/80 dark:text-teal-300'
+                                        : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                                    }`}
+                                  >
+                                    Info
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 ${
+                                    pos.reportStatus === 'TERVERIFIKASI'
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                      : pos.reportStatus === 'SUDAH LAPOR'
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
+                                      : pos.reportStatus === 'BELUM LENGKAP' || pos.reportStatus === 'PERLU PERBAIKAN'
+                                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                                  }`}
+                                >
+                                  {pos.reportStatus}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditPosyandu(pos)}
+                                  className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/60 text-slate-700 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-300 font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 hover:border-teal-300 dark:hover:border-teal-800"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                  <span>Kelola URL</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
+                    <span>Menampilkan {filteredAdminPosyandu.length} dari {posyanduList.length} Posyandu</span>
+                    <span>Puskesmas Kepanjen • Kabupaten Malang</span>
+                  </div>
+                </div>
+              ) : (
+                /* Subview 2: QC Hub */
+                <PosyanduMonitoringHub
+                  posyanduList={posyanduList}
+                  onUpdatePosyandu={(updated) => {
+                    const next = posyanduList.map((p) => (p.id === updated.id ? updated : p));
+                    onUpdatePosyanduList(next);
+                  }}
+                  isPortalPegawaiOrAdmin={true}
+                />
+              )}
             </div>
           )}
 
@@ -3957,7 +4354,341 @@ function doGet(e) {
         </div>
       )}
 
-      {/* News Editor Modal (Matching Capturea.PNG) */}
+      {/* ================= MODAL: EDIT POSYANDU & URLS ================= */}
+      {isPosyanduModalOpen && editingPosyandu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0 bg-teal-500/5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Kelola Posyandu: {editingPosyandu.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Konfigurasi tautan digital, wilayah kerja, dan status pelaporan ILP
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPosyanduModalOpen(false);
+                  setEditingPosyandu(null);
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSavePosyanduForm} className="flex flex-col grow overflow-hidden">
+              <div className="p-5 sm:p-6 overflow-y-auto space-y-5 grow">
+                {/* Basic Info */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Nama Posyandu:
+                    </label>
+                    <input
+                      type="text"
+                      value={editingPosyandu.name}
+                      onChange={(e) => setEditingPosyandu({ ...editingPosyandu, name: e.target.value })}
+                      placeholder="Contoh: Posyandu Mawar 1"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Desa / Kelurahan:
+                    </label>
+                    <select
+                      value={editingPosyandu.village}
+                      onChange={(e) => setEditingPosyandu({ ...editingPosyandu, village: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                      required
+                    >
+                      {VILLAGES_KEPANJEN.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Alamat / Lokasi RW:
+                    </label>
+                    <input
+                      type="text"
+                      value={editingPosyandu.address}
+                      onChange={(e) => setEditingPosyandu({ ...editingPosyandu, address: e.target.value })}
+                      placeholder="Contoh: RW 02 Dusun Krajan"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Status Aktif */}
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
+                  <input
+                    type="checkbox"
+                    id="pos-is-active"
+                    checked={editingPosyandu.isActive}
+                    onChange={(e) => setEditingPosyandu({ ...editingPosyandu, isActive: e.target.checked })}
+                    className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500"
+                  />
+                  <label htmlFor="pos-is-active" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                    Posyandu Aktif Beroperasi
+                  </label>
+                </div>
+
+                {/* Section: Tautan Digital */}
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
+                      Integrasi Tautan Digital
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Gunakan URL lengkap diawali https://
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Tautan Sistem / Portal Mandiri Posyandu:
+                      </label>
+                      <input
+                        type="url"
+                        value={editingPosyandu.systemUrl || ''}
+                        onChange={(e) => setEditingPosyandu({ ...editingPosyandu, systemUrl: e.target.value })}
+                        placeholder="https://..."
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Tautan Google Form Pelaporan:
+                      </label>
+                      <input
+                        type="url"
+                        value={editingPosyandu.reportFormUrl || ''}
+                        onChange={(e) => setEditingPosyandu({ ...editingPosyandu, reportFormUrl: e.target.value })}
+                        placeholder="https://docs.google.com/forms/..."
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Tautan Google Drive Folder Eviden:
+                      </label>
+                      <input
+                        type="url"
+                        value={editingPosyandu.docUrl || ''}
+                        onChange={(e) => setEditingPosyandu({ ...editingPosyandu, docUrl: e.target.value })}
+                        placeholder="https://drive.google.com/drive/folders/..."
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Tautan Informasi Kesehatan Desa (Linktree / Web):
+                      </label>
+                      <input
+                        type="url"
+                        value={editingPosyandu.villageInfoUrl || ''}
+                        onChange={(e) => setEditingPosyandu({ ...editingPosyandu, villageInfoUrl: e.target.value })}
+                        placeholder="https://linktr.ee/..."
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section: Status Pelaporan & QC */}
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 inline-block">
+                    Kendali Mutu & Verifikasi Pelaporan
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Status Pelaporan:
+                      </label>
+                      <select
+                        value={editingPosyandu.reportStatus}
+                        onChange={(e) =>
+                          setEditingPosyandu({
+                            ...editingPosyandu,
+                            reportStatus: e.target.value as any
+                          })
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                      >
+                        <option value="TERVERIFIKASI">TERVERIFIKASI</option>
+                        <option value="SUDAH LAPOR">SUDAH LAPOR</option>
+                        <option value="BELUM LENGKAP">BELUM LENGKAP</option>
+                        <option value="PERLU PERBAIKAN">PERLU PERBAIKAN</option>
+                        <option value="DRAFT">DRAFT</option>
+                        <option value="BELUM LAPOR">BELUM LAPOR</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Periode Bulan Pelaporan:
+                      </label>
+                      <input
+                        type="text"
+                        value={editingPosyandu.reportPeriodMonth || ''}
+                        onChange={(e) =>
+                          setEditingPosyandu({ ...editingPosyandu, reportPeriodMonth: e.target.value })
+                        }
+                        placeholder="Contoh: Maret 2026"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Checklist QC */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Checklist Kelengkapan Berkas & Data:
+                    </span>
+                    <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingPosyandu.checklist?.formFilled || false}
+                        onChange={(e) =>
+                          setEditingPosyandu({
+                            ...editingPosyandu,
+                            checklist: {
+                              formFilled: e.target.checked,
+                              docUploaded: editingPosyandu.checklist?.docUploaded || false,
+                              formatStandard: editingPosyandu.checklist?.formatStandard || false,
+                              logbookAvailable: editingPosyandu.checklist?.logbookAvailable || false
+                            }
+                          })
+                        }
+                        className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4"
+                      />
+                      <span>Form Pelaporan Terisi Lengkap</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingPosyandu.checklist?.docUploaded || false}
+                        onChange={(e) =>
+                          setEditingPosyandu({
+                            ...editingPosyandu,
+                            checklist: {
+                              formFilled: editingPosyandu.checklist?.formFilled || false,
+                              docUploaded: e.target.checked,
+                              formatStandard: editingPosyandu.checklist?.formatStandard || false,
+                              logbookAvailable: editingPosyandu.checklist?.logbookAvailable || false
+                            }
+                          })
+                        }
+                        className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4"
+                      />
+                      <span>Dokumen Eviden Terunggah di Google Drive</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingPosyandu.checklist?.formatStandard || false}
+                        onChange={(e) =>
+                          setEditingPosyandu({
+                            ...editingPosyandu,
+                            checklist: {
+                              formFilled: editingPosyandu.checklist?.formFilled || false,
+                              docUploaded: editingPosyandu.checklist?.docUploaded || false,
+                              formatStandard: e.target.checked,
+                              logbookAvailable: editingPosyandu.checklist?.logbookAvailable || false
+                            }
+                          })
+                        }
+                        className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4"
+                      />
+                      <span>Format Data Sesuai Standar ILP</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingPosyandu.checklist?.logbookAvailable || false}
+                        onChange={(e) =>
+                          setEditingPosyandu({
+                            ...editingPosyandu,
+                            checklist: {
+                              formFilled: editingPosyandu.checklist?.formFilled || false,
+                              docUploaded: editingPosyandu.checklist?.docUploaded || false,
+                              formatStandard: editingPosyandu.checklist?.formatStandard || false,
+                              logbookAvailable: e.target.checked
+                            }
+                          })
+                        }
+                        className="rounded text-teal-600 focus:ring-teal-500 w-4 h-4"
+                      />
+                      <span>Logbook Pelayanan Tersedia</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Catatan Evaluasi / Verifikasi:
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={editingPosyandu.verificationNotes || ''}
+                      onChange={(e) =>
+                        setEditingPosyandu({ ...editingPosyandu, verificationNotes: e.target.value })
+                      }
+                      placeholder="Catatan dari verifikator atau evaluator Puskesmas..."
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="sticky bottom-0 z-10 shrink-0 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-xs p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPosyanduModalOpen(false);
+                    setEditingPosyandu(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-850 text-slate-700 dark:text-slate-300 text-xs font-bold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  Simpan Posyandu
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <NewsEditorModal
         isOpen={isNewsEditorOpen}
         onClose={() => {
