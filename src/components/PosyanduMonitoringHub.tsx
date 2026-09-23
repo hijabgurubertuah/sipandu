@@ -636,6 +636,29 @@ export default function PosyanduMonitoringHub({
                 </div>
               );
             })}
+
+            {filteredPosyandus.length === 0 && (
+              <div className="col-span-full py-12 px-6 text-center bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700">
+                <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+                <h4 className="text-base font-bold text-slate-900 dark:text-white mb-1">
+                  Tidak Ada Posyandu yang Sesuai Filter
+                </h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto mb-4">
+                  Tidak ditemukan data posyandu dengan filter atau kata kunci pencarian saat ini.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedVillageFilter('ALL');
+                    setSelectedStatusFilter('ALL');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800 transition"
+                >
+                  Reset Semua Filter (Tampilkan 108 Posyandu)
+                </button>
+              </div>
+            )}
           </div>
 
         </div>

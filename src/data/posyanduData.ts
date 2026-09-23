@@ -407,12 +407,69 @@ export function generateDefault108Posyandu(): PosyanduItem[] {
 }
 
 export function sanitizePosyanduList(list: PosyanduItem[]): PosyanduItem[] {
-  if (!Array.isArray(list)) return [];
-  return list.map((item) => {
-    const isBrokenFormUrl = !item.reportFormUrl || item.reportFormUrl.includes('sipandu-pelaporan-') || item.reportFormUrl === '#';
-    return {
-      ...item,
-      reportFormUrl: isBrokenFormUrl ? DEFAULT_MASTER_GOOGLE_FORM_URL : item.reportFormUrl
-    };
+  return sanitizeAndMergePosyanduList(list);
+}
+
+export function sanitizeAndMergePosyanduList(list?: PosyanduItem[] | null): PosyanduItem[] {
+  const defaults = generateDefault108Posyandu();
+  if (!Array.isArray(list) || list.length === 0) {
+    return defaults;
+  }
+
+  // Create lookup maps for fast matching
+  const mapById = new Map<string, PosyanduItem>();
+  const mapByNum = new Map<number, PosyanduItem>();
+  const mapByName = new Map<string, PosyanduItem>();
+
+  list.forEach((item) => {
+    if (!item) return;
+    if (item.id) mapById.set(item.id.toUpperCase().trim(), item);
+    if (typeof item.number === 'number') mapByNum.set(item.number, item);
+    if (item.name) mapByName.set(item.name.toUpperCase().trim(), item);
   });
+
+  const matchedExistingIds = new Set<string>();
+
+  // Ensure all 108 defaults are present, with any existing overrides applied
+  const merged: PosyanduItem[] = defaults.map((def) => {
+    const existing =
+      mapById.get(def.id.toUpperCase().trim()) ||
+      mapByNum.get(def.number) ||
+      mapByName.get(def.name.toUpperCase().trim());
+
+    if (existing) {
+      if (existing.id) matchedExistingIds.add(existing.id.toUpperCase().trim());
+      const isBrokenFormUrl =
+        !existing.reportFormUrl ||
+        existing.reportFormUrl.includes('sipandu-pelaporan-') ||
+        existing.reportFormUrl === '#';
+
+      return {
+        ...def,
+        ...existing,
+        id: def.id, // Keep canonical ID
+        number: def.number, // Keep canonical number
+        village: def.village || existing.village,
+        reportFormUrl: isBrokenFormUrl ? (def.reportFormUrl || DEFAULT_MASTER_GOOGLE_FORM_URL) : existing.reportFormUrl
+      };
+    }
+
+    return def;
+  });
+
+  // If there are any custom added Posyandus that were not part of 108 defaults, keep them
+  list.forEach((item) => {
+    if (item && item.id && !matchedExistingIds.has(item.id.toUpperCase().trim())) {
+      const isBrokenFormUrl =
+        !item.reportFormUrl ||
+        item.reportFormUrl.includes('sipandu-pelaporan-') ||
+        item.reportFormUrl === '#';
+      merged.push({
+        ...item,
+        reportFormUrl: isBrokenFormUrl ? DEFAULT_MASTER_GOOGLE_FORM_URL : item.reportFormUrl
+      });
+    }
+  });
+
+  return merged;
 }

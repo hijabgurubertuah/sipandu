@@ -64,6 +64,7 @@ import {
   PosyanduItem
 } from '../types';
 import { VILLAGES_KEPANJEN, DEFAULT_DOCK_CONFIG } from '../data/mockData';
+import { generateDefault108Posyandu, sanitizeAndMergePosyanduList } from '../data/posyanduData';
 import FirebaseStatusTab from './FirebaseStatusTab';
 import PosyanduMonitoringHub from './PosyanduMonitoringHub';
 import { getSyncCachedImage } from '../lib/imageCache';
@@ -506,6 +507,25 @@ export default function AdminPortal({
       showToast(`Data "${editingPosyandu.name}" berhasil disimpan ke Firebase Firestore!`);
     } catch (err: any) {
       showToast(`Data disimpan secara lokal. (${err.message || 'Offline'})`);
+    }
+  };
+
+  const handleResetAndSeed108Posyandu = async () => {
+    if (!window.confirm('Muat ulang seluruh 108 Master Data Posyandu se-Kecamatan Kepanjen (18 Desa/Kelurahan) dan sinkronkan ke Firebase? Data yang ada akan disempurnakan.')) {
+      return;
+    }
+    const default108 = generateDefault108Posyandu();
+    const merged = sanitizeAndMergePosyanduList(posyanduList);
+    const finalList = merged.length >= 108 ? merged : default108;
+    onUpdatePosyanduList(finalList);
+    setIsSyncingPosyandu(true);
+    try {
+      await savePosyanduListToFirestore(finalList);
+      showToast(`✅ Berhasil memuat & menyinkronkan lengkap ${finalList.length} Posyandu ke Firebase Firestore!`);
+    } catch (err: any) {
+      showToast(`✅ ${finalList.length} Posyandu berhasil dimuat lokal. (Sync cloud: ${err.message || 'Offline'})`);
+    } finally {
+      setIsSyncingPosyandu(false);
     }
   };
 
@@ -1943,6 +1963,16 @@ function doGet(e) {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleResetAndSeed108Posyandu}
+                      disabled={isSyncingPosyandu}
+                      className="px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-2xs"
+                      title="Pastikan dan muat lengkap seluruh 108 Posyandu se-Kecamatan Kepanjen (18 Desa)"
+                    >
+                      <RefreshCw className={`w-4 h-4 text-emerald-600 ${isSyncingPosyandu ? 'animate-spin' : ''}`} />
+                      <span>Muat Lengkap 108 Master</span>
+                    </button>
                     <button
                       type="button"
                       onClick={handleExportPosyanduCSV}
