@@ -4477,9 +4477,21 @@ function doGet(e) {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Tautan Google Form Pelaporan:
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          Tautan Google Form Pelaporan:
+                        </label>
+                        <a
+                          href={editingPosyandu.reportFormUrl && !editingPosyandu.reportFormUrl.includes('sipandu-pelaporan-') ? editingPosyandu.reportFormUrl : 'https://docs.google.com/forms/'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                          title="Buka dan tes Google Form di tab baru"
+                        >
+                          <span>Tes Buka Form</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
                       <input
                         type="url"
                         value={editingPosyandu.reportFormUrl || ''}

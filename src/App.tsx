@@ -38,7 +38,7 @@ import {
   DEFAULT_DOCK_CONFIG,
   MOCK_DRIVE_GALLERY
 } from './data/mockData';
-import { generateDefault108Posyandu } from './data/posyanduData';
+import { generateDefault108Posyandu, sanitizePosyanduList } from './data/posyanduData';
 import MobileDock from './components/MobileDock';
 import PublicMobileSidebar from './components/PublicMobileSidebar';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
@@ -147,7 +147,8 @@ export default function App() {
   const [posyanduList, setPosyanduList] = useState<PosyanduItem[]>(() => {
     try {
       const saved = localStorage.getItem('sipandu_posyandu_list');
-      return saved ? JSON.parse(saved) : generateDefault108Posyandu();
+      const list = saved ? JSON.parse(saved) : generateDefault108Posyandu();
+      return sanitizePosyanduList(list);
     } catch {
       return generateDefault108Posyandu();
     }
@@ -246,7 +247,7 @@ export default function App() {
       if (data.systems && data.systems.length > 0) setSystems(data.systems);
       if (data.newsList && data.newsList.length > 0) setNewsList(data.newsList);
       if (data.gallery && data.gallery.length > 0) setDriveGallery(data.gallery);
-      if (data.posyanduList && data.posyanduList.length > 0) setPosyanduList(data.posyanduList);
+      if (data.posyanduList && data.posyanduList.length > 0) setPosyanduList(sanitizePosyanduList(data.posyanduList));
     } catch (e) {
       console.warn('Initial cloud sync error:', e);
     }

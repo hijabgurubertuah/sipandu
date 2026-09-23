@@ -286,6 +286,8 @@ const RAW_108_POSYANDU: { number: number; name: string; village: string }[] = [
   { number: 108, name: 'DAHLIA 4 SENGGURUH', village: 'SENGGURUH' }
 ];
 
+export const DEFAULT_MASTER_GOOGLE_FORM_URL = 'https://docs.google.com/forms/';
+
 export function generateDefault108Posyandu(): PosyanduItem[] {
   const villageLinkMap: Record<string, string> = {};
   VILLAGES_18_DATA.forEach(v => {
@@ -390,7 +392,7 @@ export function generateDefault108Posyandu(): PosyanduItem[] {
       address: `Wilayah RW ${String((raw.number % 8) + 1).padStart(2, '0')}, ${raw.village.toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}, Kec. Kepanjen`,
       status: 'Aktif',
       systemUrl: `https://posyandu.kepanjen.id/portal/${id.toLowerCase()}`,
-      reportFormUrl: `https://forms.gle/sipandu-pelaporan-${id.toLowerCase()}`,
+      reportFormUrl: DEFAULT_MASTER_GOOGLE_FORM_URL,
       docUrl: `https://drive.google.com/drive/folders/posyandu-data-${id.toLowerCase()}`,
       villageInfoUrl: villageUrl,
       reportStatus,
@@ -400,6 +402,17 @@ export function generateDefault108Posyandu(): PosyanduItem[] {
       verifiedBy: reportStatus === 'TERVERIFIKASI' ? `Kader Koordinator ${raw.village}` : undefined,
       verifiedAt: reportStatus === 'TERVERIFIKASI' ? '16 September 2026, 10:30 WIB' : undefined,
       monthlyStatus
+    };
+  });
+}
+
+export function sanitizePosyanduList(list: PosyanduItem[]): PosyanduItem[] {
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => {
+    const isBrokenFormUrl = !item.reportFormUrl || item.reportFormUrl.includes('sipandu-pelaporan-') || item.reportFormUrl === '#';
+    return {
+      ...item,
+      reportFormUrl: isBrokenFormUrl ? DEFAULT_MASTER_GOOGLE_FORM_URL : item.reportFormUrl
     };
   });
 }

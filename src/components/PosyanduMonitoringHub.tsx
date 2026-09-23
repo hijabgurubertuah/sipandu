@@ -30,6 +30,7 @@ import { PosyanduItem, VillageData, PosyanduReportStatus, UserRole } from '../ty
 import { VILLAGES_18_DATA, MONTH_NAMES, MONTH_SHORT_NAMES } from '../data/posyanduData';
 import PosyanduDetailModal from './PosyanduDetailModal';
 import PosyanduVerifyModal from './PosyanduVerifyModal';
+import PosyanduReportFormModal from './PosyanduReportFormModal';
 
 interface PosyanduMonitoringHubProps {
   posyanduList: PosyanduItem[];
@@ -60,6 +61,7 @@ export default function PosyanduMonitoringHub({
   // Modals state
   const [selectedPosyanduForDetail, setSelectedPosyanduForDetail] = useState<PosyanduItem | null>(null);
   const [selectedPosyanduForVerify, setSelectedPosyanduForVerify] = useState<PosyanduItem | null>(null);
+  const [selectedPosyanduForReport, setSelectedPosyanduForReport] = useState<PosyanduItem | null>(null);
 
   // Drill-down filter in Dashboard
   const [drillDownVillage, setDrillDownVillage] = useState<string>('ALL');
@@ -578,16 +580,15 @@ export default function PosyanduMonitoringHub({
                         <span className="truncate">Sistem Pos</span>
                         <ExternalLink className="w-3 h-3 shrink-0 ml-1" />
                       </a>
-                      <a
-                        href={pos.reportFormUrl || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 text-blue-800 dark:text-blue-300 font-semibold flex items-center justify-between transition"
-                        title="Formulir Pelaporan"
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPosyanduForReport(pos)}
+                        className="px-2 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 text-blue-800 dark:text-blue-300 font-semibold flex items-center justify-between transition cursor-pointer"
+                        title="Formulir Pelaporan (Buka Google Forms)"
                       >
                         <span className="truncate">Pelaporan</span>
                         <ExternalLink className="w-3 h-3 shrink-0 ml-1" />
-                      </a>
+                      </button>
                       <a
                         href={pos.villageInfoUrl || '#'}
                         target="_blank"
@@ -1247,9 +1248,25 @@ export default function PosyanduMonitoringHub({
           posyandu={selectedPosyanduForDetail}
           onClose={() => setSelectedPosyanduForDetail(null)}
           canVerify={canVerify}
+          onOpenReportForm={(p) => {
+            setSelectedPosyanduForDetail(null);
+            setSelectedPosyanduForReport(p);
+          }}
           onVerifyReport={(p) => {
             setSelectedPosyanduForDetail(null);
             setSelectedPosyanduForVerify(p);
+          }}
+        />
+      )}
+
+      {selectedPosyanduForReport && (
+        <PosyanduReportFormModal
+          posyandu={selectedPosyanduForReport}
+          currentUserName={currentUserName}
+          onClose={() => setSelectedPosyanduForReport(null)}
+          onSubmitReport={(updated) => {
+            onUpdatePosyandu(updated);
+            setSelectedPosyanduForReport(null);
           }}
         />
       )}

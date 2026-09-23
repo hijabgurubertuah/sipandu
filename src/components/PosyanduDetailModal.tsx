@@ -203,11 +203,18 @@ export default function PosyanduDetailModal({
               </a>
 
               {/* 2. Form Pelaporan */}
-              <a
-                href={posyandu.reportFormUrl || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-4 rounded-2xl bg-blue-50 hover:bg-blue-100/90 dark:bg-blue-950/40 dark:hover:bg-blue-950/70 border border-blue-200 dark:border-blue-800/80 transition group flex flex-col justify-between"
+              <div
+                onClick={() => {
+                  if (onOpenReportForm) {
+                    onOpenReportForm(posyandu);
+                  } else {
+                    const url = posyandu.reportFormUrl && !posyandu.reportFormUrl.includes('sipandu-pelaporan-') && posyandu.reportFormUrl !== '#'
+                      ? posyandu.reportFormUrl
+                      : 'https://docs.google.com/forms/';
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+                className="p-4 rounded-2xl bg-blue-50 hover:bg-blue-100/90 dark:bg-blue-950/40 dark:hover:bg-blue-950/70 border border-blue-200 dark:border-blue-800/80 transition group flex flex-col justify-between cursor-pointer"
               >
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
@@ -220,13 +227,26 @@ export default function PosyanduDetailModal({
                     Formulir Pelaporan Bulanan
                   </h4>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                    {posyandu.reportFormUrl || 'Belum diatur'}
+                    {posyandu.reportFormUrl && !posyandu.reportFormUrl.includes('sipandu-pelaporan-') ? posyandu.reportFormUrl : 'Google Forms Pelaporan'}
                   </p>
                 </div>
-                <span className="text-[11px] font-bold text-blue-700 dark:text-blue-400 mt-3 inline-flex items-center gap-1">
-                  Input / Perbarui Laporan &rarr;
-                </span>
-              </a>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-blue-700 dark:text-blue-400 inline-flex items-center gap-1">
+                    Isi Laporan / Buka Form &rarr;
+                  </span>
+                  <a
+                    href={posyandu.reportFormUrl && !posyandu.reportFormUrl.includes('sipandu-pelaporan-') && posyandu.reportFormUrl !== '#' ? posyandu.reportFormUrl : 'https://docs.google.com/forms/'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold flex items-center gap-1"
+                    title="Buka Langsung di Google Forms"
+                  >
+                    <span>Tab Baru</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
 
               {/* 3. Linktree Informasi Desa */}
               <a
@@ -424,15 +444,23 @@ export default function PosyanduDetailModal({
             >
               Tutup
             </button>
-            <a
-              href={posyandu.reportFormUrl || '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-xs transition flex items-center gap-1.5"
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenReportForm) {
+                  onOpenReportForm(posyandu);
+                } else {
+                  const url = posyandu.reportFormUrl && !posyandu.reportFormUrl.includes('sipandu-pelaporan-') && posyandu.reportFormUrl !== '#'
+                    ? posyandu.reportFormUrl
+                    : 'https://docs.google.com/forms/';
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>Buka Formulir Pelaporan</span>
               <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            </button>
           </div>
         </div>
 
